@@ -123,6 +123,7 @@ int main(){
                     execvp(*argv_list[command], argv_list[command]);
                     perror("Failed Command");
                     
+                    exit(EXIT_FAILURE);
                     // char fail_message[50];
                     // sprintf(fail_message, "command %d has failed\n", command);
                 }
