@@ -7,7 +7,6 @@
 
 #define MSG "mini_shell > "
 
-char list[] = {"hello here i am"};
 
 
 int main(){
@@ -38,6 +37,9 @@ int main(){
                 if (*token == '|'){  // can figure out how to evaluate things like ls |grep no space after check if points to | and next != null
                     if (argv_count == 1){
                         printf("Parse error. Try again.\n");
+
+                        free(argv);
+                        free(argv_list);
                         break;
                     }
 
@@ -73,6 +75,7 @@ int main(){
                             exit(EXIT_FAILURE);
                         }
 
+                        // updates stale pointer for argv
                         argv_list[argv_count - 2] = argv;
 
                         argv[argc++] = token;
