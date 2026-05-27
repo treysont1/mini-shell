@@ -1,0 +1,35 @@
+
+// each pipe has its own independent space.
+// pipes = 3  |   0, 1, 2
+// so fd[0, 1, 2, 3, 4, 5]
+
+// if command is not first, must read from previous pipe fd[(command - 1) * 2] ???
+// if command is not last, must write to fd[(command * 2) + 1] or next pipe ???
+
+// command0: dup2(fd[1], STDOUT_FILENO) command 0 writes to pipe 0
+
+// command1: dup2(fd[0], STDIN_FILENO) command 1 reads from pipe 0
+// command1: dup2(fd[3], STDOUT_FILENO) command1 writes to pipe 1
+
+// command2: dup2(fd[2], STDIN_FILENO) command2 reads from pipe 1
+// command2: dup2(fd[5], STDOUT_FILENO) command2 writes to pipe 2
+
+// command3: dup2(fd[4], STDIN_FILENO) command3 reads from pipe 2
+// no need to change write
+
+
+
+to check if argv list is correctly showing each arg
+//      // for (int i = 0; i < argv_count - 1; i++){
+//     char** ptr = argv_list[i];
+    
+//     for(int j = 0; ptr[j] != NULL; j++){
+//         printf("%s, ", ptr[j]);
+//     }
+//     printf("\n");
+// }
+
+
+Instead of splitting into tokens, could likely iterate through the buffer manually and gather arg pointers, since strtok is destructive
+This allows support for nonstandard spacing such as ls| grep c. However, an issue that may arise is finding a way to get past NULL pointers
+while iterating through the buffer.
