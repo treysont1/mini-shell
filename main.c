@@ -4,12 +4,22 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <stdbool.h>
+#include <signal.h>
+#include <errno.h>
 
 #define MSG "mini_shell > "
 
 void free_argv_list(char*** argv_list, int argv_count);
 
+void sigint_handler(int sig);
+
 int main(){
+    struct sigaction sa;
+    sa.sa_handler = sigint_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(SIGINT, &sa, NULL);
+
     static char start_dir[1024];
     if (getcwd(start_dir, sizeof(start_dir)) == NULL){
         perror("pwd Error");
@@ -211,8 +221,15 @@ int main(){
                 for(int i = 0; i < pipes * 2; i++){
                     close(fd[i]);
                 }
-                while (waitpid(-1, &rc, 0) > 0);
-
+                while (true){
+                    pid_t w = waitpid(-1, &rc, 0);
+                    if (w > 0){
+                        continue;
+                    } else if (w == -1 && errno == EINTR){
+                        continue;
+                    }
+                    break;
+                }
             
                 free_argv_list(argv_list, argv_count);
             }
@@ -221,8 +238,11 @@ int main(){
             next_prompt:;
             
         } else{
-            printf("\n"); 
-            break;
+            if (feof(stdin)){
+                printf("\n"); 
+                break;
+            }
+            clearerr(stdin);
         }
     }
     
@@ -233,4 +253,9 @@ void free_argv_list(char*** argv_list, int argv_count){
         free(argv_list[i]); // free(argv);
     }
     free(argv_list);
+}
+
+void sigint_handler(int sig){
+    (void)sig;
+    write(1, "\n", 1);
 }
