@@ -12,8 +12,17 @@ void free_argv_list(char*** argv_list, int argv_count);
 int main(){
 
     while (true){
-        write(1, MSG, sizeof(MSG) - 1);
         char buffer[1024];
+        char cwd[1024];
+
+        if (getcwd(cwd, sizeof(cwd))!= NULL){
+            char prompt[1100];
+            int n = snprintf(prompt, sizeof(prompt), "mini_shell %s > ", cwd);
+            write(1, prompt, n);
+        } else{
+            perror("pwd Error");
+            write(1, MSG, sizeof(MSG) - 1);
+        }
 
         if (fgets(buffer, sizeof(buffer), stdin) != NULL){
 
@@ -97,6 +106,13 @@ int main(){
 
                 goto next_prompt;
             }
+
+            if (pipes == 0 && argv_list[0] != NULL && strcmp(argv_list[0][0], "exit") == 0) {
+                // free everything
+                free_argv_list(argv_list, argv_count);
+                exit(EXIT_SUCCESS);
+            }
+
 
             {
                 int fd[pipes * 2];
