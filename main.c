@@ -10,6 +10,12 @@
 void free_argv_list(char*** argv_list, int argv_count);
 
 int main(){
+    static char start_dir[1024];
+    if (getcwd(start_dir, sizeof(start_dir)) == NULL){
+        perror("pwd Error");
+        return 1;
+    }
+    static char prev_dir[1024];
 
     while (true){
         char buffer[1024];
@@ -29,6 +35,8 @@ int main(){
             buffer[strcspn(buffer, "\r\n")] = 0;
             int pipes = 0;
             bool new_command = true;
+            bool command_since_pipe = false;
+
             char*** argv_list = malloc(sizeof(char**)); //array that keeps track of pointers to the start of each arg array, argv**
             if (argv_list == NULL){
                 perror("Malloc Error");
@@ -44,12 +52,15 @@ int main(){
             while (token != NULL){
                 // strcmp(token, "|") == 0 TOKEN IS JUST A PIPE
                 if (*token == '|'){  // can figure out how to evaluate things like ls |grep no space after check if points to | and next != null
-                    if (argv_count == 1){
-                        printf("Parse error. Try again.\n");
+
+                    if (!command_since_pipe){
+                        printf("Parse error: empty pipeline stage.\n");
 
                         free_argv_list(argv_list, argv_count);
                         goto next_prompt;
                     }
+
+                    command_since_pipe = false;
 
                     argv[argc] = NULL;
                     
@@ -90,29 +101,63 @@ int main(){
                         argv[argc] = NULL;
                     }
                     new_command = false;
+                    command_since_pipe = true;
                 }
-
+                
                 token = strtok(NULL, " ");
             }
 
-            if (pipes == 0 && argv_list[0] != NULL && strcmp(*argv_list[0], "cd") == 0){
-                const char* target = argv_list[0][1];
-                if (target == NULL){
-                    target = getenv("HOME");
-                }else if (chdir(target) != 0){
-                    perror("cd");
-                }
-                free_argv_list(argv_list, argv_count);
-
+            if (argv_count == 1){
+                free(argv_list);
                 goto next_prompt;
             }
 
-            if (pipes == 0 && argv_list[0] != NULL && strcmp(argv_list[0][0], "exit") == 0) {
-                // free everything
+            if (pipes > 0 && !command_since_pipe){
+                printf("Parse error: pipeline ends with '|'.\n");
                 free_argv_list(argv_list, argv_count);
-                exit(EXIT_SUCCESS);
+                goto next_prompt;   
             }
 
+            if (pipes == 0 && argv_list[0] != NULL){
+                
+                if (strcmp(*argv_list[0], "cd") == 0){
+                    const char* target = argv_list[0][1];
+                    if (target == NULL){
+                        target = getenv("HOME");
+                    }
+                    if (target == NULL){
+                        fprintf(stderr, "cd: HOME not set\n");
+                    } else {
+                        if (strcmp(target, "-") == 0){
+                            target = prev_dir;
+                        }
+
+                        char current[1024];
+
+                        getcwd(current, sizeof(current));
+
+                        if (chdir(target) != 0){
+                            perror("cd");
+                        }else{
+                            strncpy(prev_dir, current, sizeof(prev_dir));
+                        }
+                    }
+                    free_argv_list(argv_list, argv_count);
+                    goto next_prompt;
+                    
+                } else if (strcmp(*argv_list[0], "home") == 0){
+                    if (chdir(start_dir) != 0){
+                        perror("Home");
+                    }
+                    free_argv_list(argv_list, argv_count);
+                    goto next_prompt;
+                } else if (strcmp(*argv_list[0], "exit") == 0) {
+                    // free everything
+                    free_argv_list(argv_list, argv_count);
+                    exit(EXIT_SUCCESS);
+                }
+                 
+            }
 
             {
                 int fd[pipes * 2];
@@ -184,7 +229,7 @@ int main(){
 }
 
 void free_argv_list(char*** argv_list, int argv_count){
-    for(int i = 0; i < argv_count; i++){
+    for(int i = 0; i < argv_count - 1; i++){
         free(argv_list[i]); // free(argv);
     }
     free(argv_list);
