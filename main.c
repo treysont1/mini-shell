@@ -7,7 +7,7 @@
 
 #define MSG "mini_shell > "
 
-
+void free_argv_list(char*** argv_list, int argv_count);
 
 int main(){
 
@@ -38,9 +38,8 @@ int main(){
                     if (argv_count == 1){
                         printf("Parse error. Try again.\n");
 
-                        free(argv);
-                        free(argv_list);
-                        break;
+                        free_argv_list(argv_list, argv_count);
+                        goto next_prompt;
                     }
 
                     argv[argc] = NULL;
@@ -87,62 +86,78 @@ int main(){
                 token = strtok(NULL, " ");
             }
 
-            int fd[pipes * 2];
-
-            for(int i = 0; i < pipes; i++){
-                pipe(&fd[i * 2]);
-            }
-
-
-            for(int command = 0; command < pipes + 1; command++){
-
-                pid_t pid = fork();
-
-                if (pid < 0){
-                    printf("Failed fork.\n");
-                    return 1;
-                } else if (pid == 0){
-                    
-                    if (command == 0 && pipes > 0){
-                        // if command is first, but there are pipes
-                        dup2(fd[1], STDOUT_FILENO); 
-
-                    }else if (command == pipes && pipes > 0){
-                        // last command
-                        dup2(fd[(command - 1) * 2], STDIN_FILENO);
-
-
-                    }else if (command > 0 && command < pipes) {
-                        // middle command
-                        dup2(fd[(command - 1) * 2], STDIN_FILENO);
-                        dup2(fd[(command * 2) + 1], STDOUT_FILENO);
-
-                    }
-
-                    for(int i = 0; i < pipes * 2; i++){
-                        close(fd[i]);
-                    }
-
-                    execvp(*argv_list[command], argv_list[command]);
-                    perror("Failed Command");
-                    
-                    exit(EXIT_FAILURE);
-                    // char fail_message[50];
-                    // sprintf(fail_message, "command %d has failed\n", command);
+            if (pipes == 0 && argv_list[0] != NULL && strcmp(*argv_list[0], "cd") == 0){
+                const char* target = argv_list[0][1];
+                if (target == NULL){
+                    target = getenv("HOME");
+                }else if (chdir(target) != 0){
+                    perror("cd");
                 }
-            }   
-            int rc; 
-            for(int i = 0; i < pipes * 2; i++){
-                close(fd[i]);
-            }
-            while (waitpid(-1, &rc, 0) > 0);
+                free_argv_list(argv_list, argv_count);
 
-        
-            for(int i = 0; i < argv_count; i++){
-                free(argv_list[i]); // free(argv);
+                goto next_prompt;
+            }
+
+            {
+                int fd[pipes * 2];
+
+                for(int i = 0; i < pipes; i++){
+                    if(pipe(&fd[i * 2]) != 0){
+                        perror("Failed Pipe");
+                        exit(EXIT_FAILURE);
+                    }
+                }
+
+
+                for(int command = 0; command < pipes + 1; command++){
+
+                    pid_t pid = fork();
+
+                    if (pid < 0){
+                        printf("Failed fork.\n");
+                        exit(EXIT_FAILURE);
+                    } else if (pid == 0){
+                        
+                        if (command == 0 && pipes > 0){
+                            // if command is first, but there are pipes
+                            dup2(fd[1], STDOUT_FILENO); 
+
+                        }else if (command == pipes && pipes > 0){
+                            // last command
+                            dup2(fd[(command - 1) * 2], STDIN_FILENO);
+
+
+                        }else if (command > 0 && command < pipes) {
+                            // middle command
+                            dup2(fd[(command - 1) * 2], STDIN_FILENO);
+                            dup2(fd[(command * 2) + 1], STDOUT_FILENO);
+
+                        }
+
+                        for(int i = 0; i < pipes * 2; i++){
+                            close(fd[i]);
+                        }
+
+                        execvp(*argv_list[command], argv_list[command]);
+                        perror("Failed Command");
+                        
+                        exit(EXIT_FAILURE);
+                        // char fail_message[50];
+                        // sprintf(fail_message, "command %d has failed\n", command);
+                    }
+                }   
+                int rc; 
+                for(int i = 0; i < pipes * 2; i++){
+                    close(fd[i]);
+                }
+                while (waitpid(-1, &rc, 0) > 0);
+
+            
+                free_argv_list(argv_list, argv_count);
             }
             
-            free(argv_list);
+
+            next_prompt:;
             
         } else{
             printf("\n"); 
@@ -150,4 +165,11 @@ int main(){
         }
     }
     
+}
+
+void free_argv_list(char*** argv_list, int argv_count){
+    for(int i = 0; i < argv_count; i++){
+        free(argv_list[i]); // free(argv);
+    }
+    free(argv_list);
 }
