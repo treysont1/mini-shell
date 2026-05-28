@@ -25,3 +25,4 @@ This project started as a way to better understand how shells interact with the 
 * Compile using "gcc main.c -o mini_shell"
 * Run using "./mini_shell"
 (mini_shell name is arbitrary)
+* Type exit to quit or Ctrl+D
